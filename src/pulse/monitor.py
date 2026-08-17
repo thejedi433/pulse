@@ -46,8 +46,8 @@ def check_endpoint(
         with urllib.request.urlopen(req, timeout=timeout) as response:
             result["status_code"] = response.status
             result["response_time"] = time.time() - start_time
-            # Check if status code is in 2xx range
-            if 200 <= result["status_code"] < 300:
+            # Check if status code matches expected
+            if result["status_code"] == expected_status:
                 result["is_up"] = True
             else:
                 result["error"] = f"Unexpected status code: {result['status_code']}"

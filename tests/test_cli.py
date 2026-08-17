@@ -14,6 +14,7 @@ from pulse.cli import (
     cmd_remove,
     cmd_history,
     cmd_status,
+    cmd_monitor,
     create_parser,
 )
 
@@ -242,3 +243,254 @@ def test_parser_help():
     assert "monitor" in output
     assert "add" in output
     assert "remove" in output
+
+
+@pytest.fixture
+def mock_load_config():
+    """Mock the load_config function."""
+    with patch('pulse.cli.load_config') as mock:
+        mock.return_value = {
+            "check_interval": 60,
+            "default_timeout": 10,
+            "endpoints": [],
+        }
+        yield mock
+
+
+@pytest.fixture
+def mock_get_endpoints():
+    """Mock the get_endpoints function."""
+    with patch('pulse.cli.get_endpoints') as mock:
+        mock.return_value = []
+        yield mock
+
+
+@pytest.fixture
+def mock_get_status():
+    """Mock the get_status function."""
+    with patch('pulse.cli.get_status') as mock:
+        mock.return_value = {}
+        yield mock
+
+
+@pytest.fixture
+def mock_get_history():
+    """Mock the get_history function."""
+    with patch('pulse.cli.get_history') as mock:
+        mock.return_value = []
+        yield mock
+
+
+def test_cmd_monitor_passes_expected_status(
+    mock_init_db,
+    mock_load_config,
+    mock_get_endpoints,
+    mock_check_endpoint,
+    mock_record_check,
+    mock_get_last_status,
+    mock_log_alert,
+):
+    """Test that monitor command passes expected_status from endpoint config."""
+    mock_get_endpoints.return_value = [
+        {"url": "https://example.com", "timeout": 5, "expected_status": 201}
+    ]
+    mock_load_config.return_value = {
+        "check_interval": 60,
+        "default_timeout": 10,
+        "endpoints": [],
+    }
+    # Raise KeyboardInterrupt after one check
+    mock_check_endpoint.side_effect = KeyboardInterrupt
+    
+    args = argparse.Namespace()
+    
+    with redirect_stdout(io.StringIO()):
+        cmd_monitor(args)
+    
+    mock_check_endpoint.assert_called_once_with(
+        "https://example.com", timeout=5, expected_status=201
+    )
+
+
+def test_cmd_monitor_uses_default_expected_status(
+    mock_init_db,
+    mock_load_config,
+    mock_get_endpoints,
+    mock_check_endpoint,
+    mock_record_check,
+    mock_get_last_status,
+    mock_log_alert,
+):
+    """Test that monitor defaults expected_status to 200 when not configured."""
+    mock_get_endpoints.return_value = [
+        {"url": "https://example.com", "timeout": 5}
+    ]
+    mock_load_config.return_value = {
+        "check_interval": 60,
+        "default_timeout": 10,
+        "endpoints": [],
+    }
+    mock_check_endpoint.side_effect = KeyboardInterrupt
+    
+    args = argparse.Namespace()
+    
+    with redirect_stdout(io.StringIO()):
+        cmd_monitor(args)
+    
+    mock_check_endpoint.assert_called_once_with(
+        "https://example.com", timeout=5, expected_status=200
+    )
+
+
+def test_cmd_monitor_no_endpoints(
+    mock_init_db,
+    mock_get_endpoints,
+):
+    """Test that monitor exits when no endpoints configured."""
+    mock_get_endpoints.return_value = []
+    
+    args = argparse.Namespace()
+    
+    with pytest.raises(SystemExit) as exc_info:
+        with redirect_stdout(io.StringIO()) as stdout:
+            cmd_monitor(args)
+    
+    assert exc_info.value.code == 1
+    assert "No endpoints configured" in stdout.getvalue()
+
+
+def test_cmd_history_no_data(mock_init_db, mock_get_history):
+    """Test history command with no data."""
+    mock_get_history.return_value = []
+    
+    args = argparse.Namespace(url=None, limit=20)
+    
+    with redirect_stdout(io.StringIO()) as stdout:
+        cmd_history(args)
+    
+    assert "No check history" in stdout.getvalue()
+
+
+def test_cmd_history_with_data(mock_init_db, mock_get_history):
+    """Test history command with data."""
+    mock_get_history.return_value = [
+        {
+            "timestamp": "2024-01-01T12:00:00.000000",
+            "url": "https://example.com",
+            "status_code": 200,
+            "response_time": 0.1,
+            "is_up": 1,
+            "error_message": None,
+        }
+    ]
+    
+    args = argparse.Namespace(url=None, limit=20)
+    
+    with redirect_stdout(io.StringIO()) as stdout:
+        cmd_history(args)
+    
+    output = stdout.getvalue()
+    assert "https://example.com" in output
+    assert "UP" in output
+    assert "200" in output
+
+
+def test_cmd_history_url_filter(mock_init_db, mock_get_history):
+    """Test history command filters by URL."""
+    mock_get_history.return_value = []
+    
+    args = argparse.Namespace(url="https://example.com", limit=50)
+    
+    with redirect_stdout(io.StringIO()):
+        cmd_history(args)
+    
+    mock_get_history.assert_called_once_with("https://example.com", limit=50)
+
+
+def test_cmd_status_no_data(mock_init_db, mock_get_status):
+    """Test status command with no data."""
+    mock_get_status.return_value = {}
+    
+    args = argparse.Namespace(url=None)
+    
+    with redirect_stdout(io.StringIO()):
+        cmd_status(args)
+
+
+def test_cmd_status_single_url(mock_init_db, mock_get_status):
+    """Test status command for single URL."""
+    mock_get_status.return_value = {
+        "https://example.com": {
+            "is_up": True,
+            "last_check": "2024-01-01T12:00:00.000000",
+            "total_checks": 10,
+            "up_checks": 9,
+            "uptime_percentage": 90.0,
+        }
+    }
+    
+    args = argparse.Namespace(url="https://example.com")
+    
+    with redirect_stdout(io.StringIO()) as stdout:
+        cmd_status(args)
+    
+    output = stdout.getvalue()
+    assert "✓" in output
+    assert "UP" in output
+    assert "90.0%" in output
+
+
+def test_cmd_status_all_urls(mock_init_db, mock_get_status):
+    """Test status command for all URLs."""
+    mock_get_status.return_value = {
+        "https://example.com": {
+            "is_up": True,
+            "last_check": "2024-01-01T12:00:00.000000",
+            "total_checks": 10,
+            "up_checks": 10,
+            "uptime_percentage": 100.0,
+        },
+        "https://google.com": {
+            "is_up": False,
+            "last_check": "2024-01-01T12:00:00.000000",
+            "total_checks": 10,
+            "up_checks": 5,
+            "uptime_percentage": 50.0,
+        },
+    }
+    
+    args = argparse.Namespace(url=None)
+    
+    with redirect_stdout(io.StringIO()) as stdout:
+        cmd_status(args)
+    
+    output = stdout.getvalue()
+    assert "https://example.com" in output
+    assert "https://google.com" in output
+
+
+def test_main_no_command():
+    """Test main with no command prints help."""
+    from pulse.cli import main
+    
+    with patch('sys.argv', ['pulse']):
+        with pytest.raises(SystemExit) as exc_info:
+            main()
+        assert exc_info.value.code == 0
+
+
+def test_main_check_command(
+    mock_init_db,
+    mock_check_endpoint,
+    mock_record_check,
+    mock_get_last_status,
+    mock_log_alert,
+):
+    """Test main dispatches check command."""
+    from pulse.cli import main
+    
+    with patch('sys.argv', ['pulse', 'check', 'https://example.com']):
+        with redirect_stdout(io.StringIO()):
+            main()
+    
+    mock_check_endpoint.assert_called_once()

@@ -70,8 +70,9 @@ def cmd_monitor(args: argparse.Namespace) -> None:
             for endpoint in endpoints:
                 url = endpoint["url"]
                 timeout = endpoint.get("timeout", config["default_timeout"])
+                expected_status = endpoint.get("expected_status", 200)
                 
-                result = check_endpoint(url, timeout=timeout)
+                result = check_endpoint(url, timeout=timeout, expected_status=expected_status)
                 record_check(
                     url=url,
                     status_code=result["status_code"],

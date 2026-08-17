@@ -27,7 +27,7 @@ def test_check_endpoint_success():
 
 
 def test_check_endpoint_201_status():
-    """Test successful check with 201 status."""
+    """Test successful check with 201 status when expected."""
     with patch('pulse.monitor.urllib.request.urlopen') as mock_urlopen:
         mock_response = Mock()
         mock_response.status = 201
@@ -35,7 +35,7 @@ def test_check_endpoint_201_status():
         mock_response.__exit__ = Mock(return_value=None)
         mock_urlopen.return_value = mock_response
         
-        result = check_endpoint("https://example.com/create", timeout=10)
+        result = check_endpoint("https://example.com/create", timeout=10, expected_status=201)
         
         assert result["status_code"] == 201
         assert result["is_up"] is True
@@ -147,3 +147,37 @@ def test_check_endpoint_response_time():
         # Response time should be positive and small
         assert result["response_time"] > 0
         assert result["response_time"] < 1  # Should be very fast with mock
+
+
+def test_check_endpoint_custom_expected_status():
+    """Test that custom expected_status is respected."""
+    with patch('pulse.monitor.urllib.request.urlopen') as mock_urlopen:
+        mock_response = Mock()
+        mock_response.status = 201
+        mock_response.__enter__ = Mock(return_value=mock_response)
+        mock_response.__exit__ = Mock(return_value=None)
+        mock_urlopen.return_value = mock_response
+        
+        # When expecting 201, a 201 response should be "up"
+        result = check_endpoint("https://example.com", timeout=10, expected_status=201)
+        
+        assert result["status_code"] == 201
+        assert result["is_up"] is True
+        assert result["error"] is None
+
+
+def test_check_endpoint_wrong_expected_status():
+    """Test that wrong status code is detected with custom expected_status."""
+    with patch('pulse.monitor.urllib.request.urlopen') as mock_urlopen:
+        mock_response = Mock()
+        mock_response.status = 200
+        mock_response.__enter__ = Mock(return_value=mock_response)
+        mock_response.__exit__ = Mock(return_value=None)
+        mock_urlopen.return_value = mock_response
+        
+        # When expecting 201 but getting 200, should be "down"
+        result = check_endpoint("https://example.com", timeout=10, expected_status=201)
+        
+        assert result["status_code"] == 200
+        assert result["is_up"] is False
+        assert "Unexpected status code" in result["error"]
