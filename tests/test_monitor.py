@@ -181,3 +181,29 @@ def test_check_endpoint_wrong_expected_status():
         assert result["status_code"] == 200
         assert result["is_up"] is False
         assert "Unexpected status code" in result["error"]
+
+
+def test_check_endpoint_url_parse_exception():
+    """Test handling of URL parse exceptions."""
+    with patch('pulse.monitor.urlparse') as mock_urlparse:
+        mock_urlparse.side_effect = Exception("Parse error")
+        
+        result = check_endpoint("https://example.com", timeout=10)
+        
+        assert result["status_code"] is None
+        assert result["is_up"] is False
+        assert "URL parse error" in result["error"]
+        assert result["response_time"] > 0
+
+
+def test_check_endpoint_generic_exception():
+    """Test handling of unexpected exceptions during request."""
+    with patch('pulse.monitor.urllib.request.urlopen') as mock_urlopen:
+        mock_urlopen.side_effect = Exception("Unexpected error")
+        
+        result = check_endpoint("https://example.com", timeout=10)
+        
+        assert result["status_code"] is None
+        assert result["is_up"] is False
+        assert "Unexpected error" in result["error"]
+        assert result["response_time"] > 0
