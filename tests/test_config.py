@@ -104,3 +104,17 @@ def test_save_and_load_config(clean_config):
     assert len(loaded["endpoints"]) == 1
     assert loaded["endpoints"][0]["url"] == "https://test.com"
     assert loaded["endpoints"][0]["interval"] == 30
+
+
+def test_load_config_invalid_toml(clean_config):
+    """Test loading config with invalid TOML raises error."""
+    from pulse import config
+    
+    # Create an invalid TOML file
+    config.CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+    with open(config.CONFIG_FILE, "w") as f:
+        f.write("invalid toml content [[[\n")
+    
+    import tomllib
+    with pytest.raises(tomllib.TOMLDecodeError):
+        load_config()

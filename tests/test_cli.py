@@ -494,3 +494,87 @@ def test_main_check_command(
             main()
     
     mock_check_endpoint.assert_called_once()
+
+
+def test_cmd_monitor_loop_records_and_alerts(
+    mock_init_db,
+    mock_load_config,
+    mock_get_endpoints,
+    mock_check_endpoint,
+    mock_record_check,
+    mock_get_last_status,
+    mock_log_alert,
+):
+    """Test that monitor loop records checks and logs alerts."""
+    mock_get_endpoints.return_value = [
+        {"url": "https://example.com", "timeout": 5, "expected_status": 200}
+    ]
+    mock_load_config.return_value = {
+        "check_interval": 60,
+        "default_timeout": 10,
+        "endpoints": [],
+    }
+    mock_check_endpoint.return_value = {
+        "url": "https://example.com",
+        "status_code": 200,
+        "response_time": 0.1,
+        "is_up": True,
+        "error": None,
+    }
+    mock_get_last_status.return_value = None
+    
+    # Raise KeyboardInterrupt after first iteration by making sleep raise it
+    with patch('pulse.cli.time.sleep') as mock_sleep:
+        mock_sleep.side_effect = KeyboardInterrupt
+        
+        args = argparse.Namespace()
+        
+        with redirect_stdout(io.StringIO()) as stdout:
+            cmd_monitor(args)
+        
+        output = stdout.getvalue()
+        assert "Starting Pulse monitor" in output
+        assert "Monitor stopped" in output
+        
+        mock_record_check.assert_called_once()
+        mock_log_alert.assert_called_once()
+
+
+def test_cmd_monitor_multiple_endpoints(
+    mock_init_db,
+    mock_load_config,
+    mock_get_endpoints,
+    mock_check_endpoint,
+    mock_record_check,
+    mock_get_last_status,
+    mock_log_alert,
+):
+    """Test monitor checks all endpoints in one cycle."""
+    mock_get_endpoints.return_value = [
+        {"url": "https://example.com", "timeout": 5, "expected_status": 200},
+        {"url": "https://google.com", "timeout": 10},
+    ]
+    mock_load_config.return_value = {
+        "check_interval": 60,
+        "default_timeout": 10,
+        "endpoints": [],
+    }
+    mock_check_endpoint.return_value = {
+        "url": "https://example.com",
+        "status_code": 200,
+        "response_time": 0.1,
+        "is_up": True,
+        "error": None,
+    }
+    
+    with patch('pulse.cli.time.sleep') as mock_sleep:
+        mock_sleep.side_effect = KeyboardInterrupt
+        
+        args = argparse.Namespace()
+        
+        with redirect_stdout(io.StringIO()):
+            cmd_monitor(args)
+        
+        # Should check both endpoints
+        assert mock_check_endpoint.call_count == 2
+        assert mock_record_check.call_count == 2
