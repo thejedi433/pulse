@@ -142,6 +142,31 @@ def test_get_status(clean_db):
     assert status["https://example.com"]["uptime_percentage"] == pytest.approx(66.67, rel=1e-1)
 
 
+def test_get_status_all_urls(clean_db):
+    """Test getting status for all URLs (no filter)."""
+    record_check("https://example.com", 200, 0.1, True)
+    record_check("https://example.com", 200, 0.15, True)
+    record_check("https://google.com", 200, 0.2, True)
+    record_check("https://google.com", 500, 0.25, False)
+    
+    # Call get_status() with no URL parameter - should return all URLs
+    status = get_status()
+    
+    # Should have both URLs
+    assert "https://example.com" in status
+    assert "https://google.com" in status
+    
+    # Check example.com stats
+    assert status["https://example.com"]["total_checks"] == 2
+    assert status["https://example.com"]["up_checks"] == 2
+    assert status["https://example.com"]["uptime_percentage"] == pytest.approx(100.0)
+    
+    # Check google.com stats
+    assert status["https://google.com"]["total_checks"] == 2
+    assert status["https://google.com"]["up_checks"] == 1
+    assert status["https://google.com"]["uptime_percentage"] == pytest.approx(50.0)
+
+
 def test_get_last_status(clean_db):
     """Test getting last status."""
     record_check("https://example.com", 200, 0.1, True)

@@ -6,8 +6,8 @@ from typing import TypedDict
 
 try:
     import tomllib
-except ImportError:
-    import tomli as tomllib  # type: ignore
+except ImportError:  # pragma: no cover
+    import tomli as tomllib  # type: ignore  # pragma: no cover
 
 
 class EndpointConfig(TypedDict):
