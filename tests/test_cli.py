@@ -122,17 +122,17 @@ def test_cmd_check_with_timeout(
     mock_log_alert,
 ):
     """Test the check command with custom timeout."""
-    args = argparse.Namespace(url="https://example.com", timeout=30)
+    args = argparse.Namespace(url="https://example.com", timeout=30, expected_status=200)
     
     cmd_check(args)
     
-    mock_check_endpoint.assert_called_once_with("https://example.com", timeout=30)
+    mock_check_endpoint.assert_called_once_with("https://example.com", timeout=30, expected_status=200)
 
 
 def test_cmd_add():
     """Test the add command."""
     with patch('pulse.cli.add_endpoint') as mock_add_endpoint:
-        args = argparse.Namespace(url="https://example.com", interval=120, timeout=15)
+        args = argparse.Namespace(url="https://example.com", interval=120, timeout=15, expected_status=200)
         
         with redirect_stdout(io.StringIO()) as stdout:
             cmd_add(args)
@@ -143,6 +143,7 @@ def test_cmd_add():
             "https://example.com",
             interval=120,
             timeout=15,
+            expected_status=200,
         )
         assert "Added endpoint" in output
 

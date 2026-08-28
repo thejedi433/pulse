@@ -90,13 +90,14 @@ def save_config(config: Config) -> None:
                 f.write(f'expected_status = {ep.get("expected_status", 200)}\n')
 
 
-def add_endpoint(url: str, interval: int | None = None, timeout: int | None = None) -> None:
+def add_endpoint(url: str, interval: int | None = None, timeout: int | None = None, expected_status: int | None = None) -> None:
     """Add an endpoint to the configuration.
     
     Args:
         url: The URL to monitor.
         interval: Check interval in seconds (uses default if None).
         timeout: Request timeout in seconds (uses default if None).
+        expected_status: Expected HTTP status code (uses 200 if None).
     """
     config = load_config()
     # Check if endpoint already exists
@@ -108,7 +109,7 @@ def add_endpoint(url: str, interval: int | None = None, timeout: int | None = No
         "url": url,
         "interval": interval or config["check_interval"],
         "timeout": timeout or config["default_timeout"],
-        "expected_status": 200,
+        "expected_status": expected_status if expected_status is not None else 200,
     }
     config["endpoints"].append(new_endpoint)
     save_config(config)

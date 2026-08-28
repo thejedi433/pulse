@@ -24,8 +24,9 @@ def cmd_check(args: argparse.Namespace) -> int:
     init_db()
     config = load_config()
     timeout = args.timeout or config["default_timeout"]
+    expected_status = getattr(args, "expected_status", 200)
     
-    result = check_endpoint(args.url, timeout=timeout)
+    result = check_endpoint(args.url, timeout=timeout, expected_status=expected_status)
     record_check(
         url=args.url,
         status_code=result["status_code"],
@@ -38,12 +39,16 @@ def cmd_check(args: argparse.Namespace) -> int:
     last_status = get_last_status(args.url)
     log_alert(args.url, last_status, result["is_up"])
     
-    print(format_status_message(
-        args.url,
-        result["is_up"],
-        result["response_time"],
-        result["status_code"],
-    ))
+    if getattr(args, "json", False):
+        import json
+        print(json.dumps(result, indent=2))
+    else:
+        print(format_status_message(
+            args.url,
+            result["is_up"],
+            result["response_time"],
+            result["status_code"],
+        ))
     
     return 0 if result["is_up"] else 1
 
@@ -111,6 +116,11 @@ def cmd_history(args: argparse.Namespace) -> None:
     else:
         history = get_history(limit=args.limit)
     
+    if getattr(args, "json", False):
+        import json
+        print(json.dumps(history, indent=2))
+        return
+    
     if not history:
         print("No check history found.")
         return
@@ -136,6 +146,11 @@ def cmd_status(args: argparse.Namespace) -> None:
     init_db()
     
     status = get_status(args.url)
+    
+    if getattr(args, "json", False):
+        import json
+        print(json.dumps(status, indent=2))
+        return
     
     if not status:
         print("No status data available.")
@@ -173,6 +188,7 @@ def cmd_add(args: argparse.Namespace) -> None:
         args.url,
         interval=args.interval,
         timeout=args.timeout,
+        expected_status=getattr(args, "expected_status", None),
     )
     print(f"Added endpoint: {args.url}")
 
@@ -219,6 +235,17 @@ def create_parser() -> argparse.ArgumentParser:
         type=int,
         help="Request timeout in seconds",
     )
+    check_parser.add_argument(
+        "--expected-status",
+        type=int,
+        default=200,
+        help="Expected HTTP status code (default: 200)",
+    )
+    check_parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Output result as JSON",
+    )
     check_parser.set_defaults(func=cmd_check)
     
     # monitor command
@@ -243,6 +270,11 @@ def create_parser() -> argparse.ArgumentParser:
         default=20,
         help="Number of records to show (default: 20)",
     )
+    history_parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Output as JSON",
+    )
     history_parser.set_defaults(func=cmd_history)
     
     # status command
@@ -253,6 +285,11 @@ def create_parser() -> argparse.ArgumentParser:
     status_parser.add_argument(
         "-u", "--url",
         help="Filter by URL",
+    )
+    status_parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Output as JSON",
     )
     status_parser.set_defaults(func=cmd_status)
     
@@ -271,6 +308,12 @@ def create_parser() -> argparse.ArgumentParser:
         "-t", "--timeout",
         type=int,
         help="Request timeout in seconds",
+    )
+    add_parser.add_argument(
+        "--expected-status",
+        type=int,
+        default=200,
+        help="Expected HTTP status code (default: 200)",
     )
     add_parser.set_defaults(func=cmd_add)
     
