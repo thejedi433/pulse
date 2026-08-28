@@ -110,11 +110,14 @@ def test_load_config_invalid_toml(clean_config):
     """Test loading config with invalid TOML raises error."""
     from pulse import config
     
-    # Create an invalid TOML file
+    # Create an invalid TOML file - unterminated string
     config.CONFIG_DIR.mkdir(parents=True, exist_ok=True)
     with open(config.CONFIG_FILE, "w") as f:
-        f.write("invalid toml content [[[\n")
+        f.write('key = "unterminated string\n')
     
-    import tomllib
+    try:
+        import tomllib
+    except ImportError:
+        import tomli as tomllib  # type: ignore
     with pytest.raises(tomllib.TOMLDecodeError):
         load_config()
