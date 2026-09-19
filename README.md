@@ -9,7 +9,8 @@
 - ✓ SQLite database for persistent history
 - ✓ State-change alerting with clear up/down transitions
 - ✓ CLI interface for manual checks and daemon mode
-- ✓ Minimal dependencies (Python stdlib only)
+- ✓ **Telegram notifications** on status changes
+- ✓ Minimal dependencies
 - ✓ Type hints and comprehensive tests
 
 ## Installation
@@ -19,7 +20,7 @@
 ```bash
 cd /path/to/pulse
 python3 -m venv venv
-source venv/bin/activate
+source venv/activate
 pip install -e ".[dev]"
 ```
 
@@ -115,6 +116,21 @@ timeout = 15
 expected_status = 200
 ```
 
+## Telegram Notifications
+
+Pulse can send Telegram alerts when endpoints change state. To enable:
+
+1. Create a Telegram bot via [@BotFather](https://t.me/BotFather)
+2. Get your chat ID (message [@userinfobot](https://t.me/userinfobot))
+3. Set environment variables:
+
+```bash
+export PULSE_TELEGRAM_TOKEN="your-bot-token"
+export PULSE_TELEGRAM_CHAT_ID="your-chat-id"
+```
+
+Once configured, Pulse will send Telegram messages whenever an endpoint changes from UP to DOWN or vice versa. Alerts are also logged to `~/.local/share/pulse/alerts.log` regardless of Telegram configuration.
+
 ## Storage
 
 - **Database**: `~/.local/share/pulse/pulse.db` (SQLite)
@@ -140,6 +156,8 @@ Example alert output:
 [2026-08-15T10:35:00] STATE CHANGE: https://api.example.com/health went from UP to DOWN
 [2026-08-15T10:40:00] STATE CHANGE: https://api.example.com/health went from DOWN to UP
 ```
+
+If Telegram notifications are configured, state changes (not initial checks) are also sent via Telegram.
 
 ## HTTP Checks
 
@@ -190,12 +208,14 @@ interval = 60
 timeout = 10
 EOF
 
-# Run container
+# Run container with optional Telegram config
 docker run -d \
   --name pulse \
   -v ~/pulse/config:/config \
   -v ~/pulse/data:/data \
   -e HOME=/home/pulse \
+  -e PULSE_TELEGRAM_TOKEN="your-token" \
+  -e PULSE_TELEGRAM_CHAT_ID="your-chat-id" \
   --restart unless-stopped \
   pulse-monitor
 ```
@@ -237,6 +257,8 @@ services:
       - ./data:/data
     environment:
       - HOME=/home/pulse
+      - PULSE_TELEGRAM_TOKEN=${PULSE_TELEGRAM_TOKEN}
+      - PULSE_TELEGRAM_CHAT_ID=${PULSE_TELEGRAM_CHAT_ID}
     restart: unless-stopped
 ```
 
@@ -257,6 +279,8 @@ Wants=network-online.target
 Type=simple
 User=pi
 ExecStart=/home/pi/projects/pulse/venv/bin/pulse monitor
+Environment=PULSE_TELEGRAM_TOKEN=your-token
+Environment=PULSE_TELEGRAM_CHAT_ID=your-chat-id
 Restart=always
 RestartSec=10
 

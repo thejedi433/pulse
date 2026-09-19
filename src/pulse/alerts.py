@@ -4,6 +4,8 @@ import os
 from datetime import datetime
 from pathlib import Path
 
+from .notifier import TelegramNotifier
+
 
 ALERTS_DIR = Path.home() / ".local" / "share" / "pulse"
 ALERTS_FILE = ALERTS_DIR / "alerts.log"
@@ -14,13 +16,23 @@ def ensure_alerts_dir() -> None:
     ALERTS_DIR.mkdir(parents=True, exist_ok=True)
 
 
-def log_alert(url: str, old_status: bool | None, new_status: bool) -> str:
+def log_alert(
+    url: str,
+    old_status: bool | None,
+    new_status: bool,
+    notifier: TelegramNotifier | None = None,
+    response_time: float = 0.0,
+    status_code: int | None = None,
+) -> str:
     """Log a state change alert.
     
     Args:
         url: The endpoint URL.
         old_status: Previous status (None if first check).
         new_status: Current status.
+        notifier: Optional Telegram notifier.
+        response_time: Response time in seconds (for Telegram).
+        status_code: HTTP status code (for Telegram).
     
     Returns:
         str: The alert message.
@@ -41,6 +53,10 @@ def log_alert(url: str, old_status: bool | None, new_status: bool) -> str:
         with open(ALERTS_FILE, "a") as f:
             f.write(message + "\n")
         print(message)
+        
+        # Send Telegram notification if notifier is available
+        if notifier and notifier.is_configured:
+            notifier.send_notification(message)
     
     return message
 
