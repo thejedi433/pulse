@@ -144,3 +144,30 @@ def test_format_status_message_no_status_code():
     assert "✗" in message
     assert "DOWN" in message
     assert "status=N/A" in message
+
+
+@pytest.mark.usefixtures('clean_alerts')
+def test_log_alert_with_notifier(clean_alerts):
+    """Test log_alert sends notification when notifier is provided."""
+    from unittest.mock import MagicMock
+    
+    notifier = MagicMock()
+    notifier.is_configured = True
+    
+    message = log_alert("https://example.com", None, True, notifier=notifier)
+    
+    assert "INITIAL" in message
+    notifier.send_notification.assert_called_once_with(message)
+
+
+def test_log_alert_notifier_not_configured(clean_alerts):
+    """Test log_alert skips notification when notifier not configured."""
+    from unittest.mock import MagicMock
+    
+    notifier = MagicMock()
+    notifier.is_configured = False
+    
+    message = log_alert("https://example.com", None, True, notifier=notifier)
+    
+    assert "INITIAL" in message
+    notifier.send_notification.assert_not_called()
